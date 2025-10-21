@@ -84,14 +84,43 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
 })();
 </script>
 
-<!-- Pose libs (keep these unless they’re bundled inside your shared JS) -->
+<!-- TensorFlow + MediaPipe (must come first) -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
 
-<!-- Shared similarity logic (relative path; no leading slash) -->
+<!-- Your shared similarity logic (no leading slash) -->
 <script src="assets/js/shot-match-similarity.js"></script>
+
+<script>
+(function(){
+  const s = msg => { const el = document.getElementById('status'); if(el) el.textContent = msg; };
+  s('Ready. Click ⭐ Analyze Similarity');
+
+  // Check IDs exist
+  const need = ['proVid','userVid','proCanvas','userCanvas','analyzeBtn','status'];
+  const miss = need.filter(id=>!document.getElementById(id));
+  if(miss.length){ s('Missing IDs: ' + miss.join(', ')); return; }
+
+  // Check libs loaded
+  if(!(window.tf && window.poseDetection)){ s('Libraries not loaded. Check CDN script order.'); return; }
+
+  // CORS quick test on the pro video
+  const v = document.getElementById('proVid'), c = document.getElementById('proCanvas');
+  v.onloadeddata = async () => {
+    try{
+      v.pause(); c.width = v.videoWidth||640; c.height = v.videoHeight||360;
+      c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+      c.getContext('2d').getImageData(0,0,1,1); // throws if canvas is tainted
+      s('CORS OK ✅  — now click Analyze.');
+    }catch(e){
+      s('CORS blocked ❌ — host your pro video inside this repo (assets/videos/...).');
+    }
+  };
+})();
+</script>
+
 </html>
 
