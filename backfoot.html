@@ -28,8 +28,14 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
     <div class="card">
       <div style="margin:0 0 6px;font-size:14px;font-weight:600">Professional Example / 示范</div>
       <div class="video">
-      <video id="proVid" controls playsinline preload="metadata"
-       src="assets/videos/backfoot.mov" crossorigin="anonymous"></video>
+      <div class="video">
+  <video id="proVid" controls playsinline preload="metadata" crossorigin="anonymous" poster="assets/videos/backfoot-poster.jpg">
+    <!-- Keep your MOV as first source (if browser supports it, it’ll use it) -->
+    <source src="assets/videos/backfoot.mov" type="video/quicktime">
+    Your browser can’t play this video. Try a different browser.
+  </video>
+</div>
+
       </div>
       <canvas id="proCanvas"></canvas>
     </div>
