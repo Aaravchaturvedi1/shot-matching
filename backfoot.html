@@ -28,19 +28,10 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
     <div class="card">
       <div style="margin:0 0 6px;font-size:14px;font-weight:600">Professional Example / 示范</div>
       <div class="video">
-     <div class="video">
-  <video id="proVid"
-       controls
-       playsinline
-       preload="metadata"
-       crossorigin="anonymous">
-  <source src="assets/videos/backfoot.mp4" type="video/mp4">
-  Your browser can’t play this video.
-</video>
-
-</div>
-
-
+        <video id="proVid" controls playsinline preload="metadata" crossorigin="anonymous">
+          <source src="assets/videos/backfoot.mp4" type="video/mp4">
+          Your browser can’t play this video.
+        </video>
       </div>
       <canvas id="proCanvas"></canvas>
     </div>
@@ -50,7 +41,7 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
       <div style="margin:0 0 6px;font-size:14px;font-weight:600">Your Video / 你的视频</div>
       <input id="file" type="file" accept="video/*"
         style="width:100%;margin:0 0 8px;padding:10px;border:1px solid var(--bd);border-radius:10px">
-      <div class="video"><video id="userVid" controls preload="metadata" playsinline></video></div>
+      <div class="video"><video id="userVid" controls preload="metadata" playsinline crossorigin="anonymous"></video></div>
       <canvas id="userCanvas"></canvas>
 
       <div class="actions">
@@ -68,7 +59,7 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
   </div>
 </div>
 
-<!-- Your existing controls -->
+<!-- Your existing playback controls -->
 <script>
 (() => {
   const p = document.getElementById("proVid"),
@@ -76,8 +67,8 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
         f = document.getElementById("file"),
         pl = document.getElementById("play"),
         ps = document.getElementById("pause"),
-        h = document.getElementById("half"),
-        o = document.getElementById("one");
+        h  = document.getElementById("half"),
+        o  = document.getElementById("one");
 
   f.addEventListener("change", () => {
     const F = f.files && f.files[0];
@@ -90,80 +81,44 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
 
   pl.onclick = async () => { try { await p.play(); await u.play(); } catch (e) {} };
   ps.onclick = () => { p.pause(); u.pause(); };
-  h.onclick = () => { p.playbackRate = u.playbackRate = 0.5; };
-  o.onclick = () => { p.playbackRate = u.playbackRate = 1; };
+  h.onclick  = () => { p.playbackRate = u.playbackRate = 0.5; };
+  o.onclick  = () => { p.playbackRate = u.playbackRate = 1; };
 })();
 </script>
 
-<!-- TensorFlow + MediaPipe (must come first) -->
+<!-- TensorFlow + MediaPipe (load ONCE, in this order) -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
 
-<!-- Your shared similarity logic (no leading slash) -->
-<script src="assets/js/shot-match-similarity.js"></script>
+<!-- Shared similarity logic (load ONCE) -->
+<script src="assets/js/shot-match-similarity.js?v=4"></script>
 
+<!-- (Optional) tiny diagnostic; keep if you like -->
 <script>
 (function(){
   const s = msg => { const el = document.getElementById('status'); if(el) el.textContent = msg; };
   s('Ready. Click ⭐ Analyze Similarity');
 
-  // Check IDs exist
   const need = ['proVid','userVid','proCanvas','userCanvas','analyzeBtn','status'];
   const miss = need.filter(id=>!document.getElementById(id));
   if(miss.length){ s('Missing IDs: ' + miss.join(', ')); return; }
 
-  // Check libs loaded
   if(!(window.tf && window.poseDetection)){ s('Libraries not loaded. Check CDN script order.'); return; }
 
-  // CORS quick test on the pro video
   const v = document.getElementById('proVid'), c = document.getElementById('proCanvas');
   v.onloadeddata = async () => {
     try{
       v.pause(); c.width = v.videoWidth||640; c.height = v.videoHeight||360;
       c.getContext('2d').drawImage(v,0,0,c.width,c.height);
-      c.getContext('2d').getImageData(0,0,1,1); // throws if canvas is tainted
-      s('CORS OK ✅  — now click Analyze.');
+      c.getContext('2d').getImageData(0,0,1,1);
+      s('CORS OK ✅  — now upload your clip and click Analyze.');
     }catch(e){
-      s('CORS blocked ❌ — host your pro video inside this repo (assets/videos/...).');
+      s('CORS blocked ❌ — keep pro video inside this repo (assets/videos/...).');
     }
   };
 })();
 </script>
-  <script>
-(function(){
-  const v = document.getElementById('proVid');
-  if(!v) return;
-  const status = document.getElementById('status') || (function(){
-    const s=document.createElement('div'); s.id='status'; s.style.cssText='margin:8px 0;color:#6b7280';
-    v.parentElement.appendChild(s); return s;
-  })();
-
-  function say(t){ status.textContent = t; }
-  function readyName(n){ return ['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA'][n] || n; }
-
-  v.addEventListener('loadedmetadata', ()=> say('loadedmetadata • '+v.videoWidth+'x'+v.videoHeight));
-  v.addEventListener('loadeddata',     ()=> say('loadeddata • readyState='+readyName(v.readyState)));
-  v.addEventListener('canplay',        ()=> say('canplay ✅'));
-  v.addEventListener('error',          ()=> say('ERROR ❌ code='+(v.error&&v.error.code)));
-  v.addEventListener('stalled',        ()=> say('stalled…'));
-  v.addEventListener('waiting',        ()=> say('waiting…'));
-
-  // Quick codec support check
-  say('Checking support… mp4:'+v.canPlayType('video/mp4')+' mov:'+v.canPlayType('video/quicktime'));
-})();
-</script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
-
-<!-- your shared logic (cache-busted) -->
-<script src="assets/js/shot-match-similarity.js?v=4"></script>
-
-
 </html>
-
