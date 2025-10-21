@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Backfoot / 后脚击球</title>
+<title>Backfoot Punch / 后脚直推</title>
 <style>
 :root{--bd:#e5e7eb;--muted:#6b7280}
 html,body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
@@ -21,7 +21,7 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
 </style>
 
 <div class="frame card">
-  <h3 style="margin:0 0 10px">Backfoot / 后脚击球</h3>
+  <h3 style="margin:0 0 10px">Backfoot Punch / 后脚直推</h3>
 
   <div class="row">
     <!-- PRO SIDE -->
@@ -47,7 +47,6 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
         <button class="btn" id="pause">⏸ Pause Both</button>
         <button class="btn" id="half">0.5×</button>
         <button class="btn" id="one">1×</button>
-        <!-- Analyze button required by similarity script -->
         <button class="btn" id="analyzeBtn">⭐ Analyze Similarity</button>
         <span id="status" style="margin-left:8px;color:#6b7280"></span>
       </div>
@@ -58,7 +57,7 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
   </div>
 </div>
 
-<!-- Your existing inline controls (separate script, closed properly) -->
+<!-- Your existing controls -->
 <script>
 (() => {
   const p = document.getElementById("proVid"),
@@ -85,14 +84,14 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
 })();
 </script>
 
-<!-- Pose libs (needed if not bundled into your JS file) -->
+<!-- Pose libs (keep these unless they’re bundled inside your shared JS) -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
 
-<!-- The shared similarity script (no leading slash in path) -->
+<!-- Shared similarity logic (relative path; no leading slash) -->
 <script src="assets/js/shot-match-similarity.js"></script>
 </html>
 
