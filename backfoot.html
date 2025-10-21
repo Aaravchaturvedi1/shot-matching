@@ -121,6 +121,30 @@ canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);bo
   };
 })();
 </script>
+  <script>
+(function(){
+  const v = document.getElementById('proVid');
+  if(!v) return;
+  const status = document.getElementById('status') || (function(){
+    const s=document.createElement('div'); s.id='status'; s.style.cssText='margin:8px 0;color:#6b7280';
+    v.parentElement.appendChild(s); return s;
+  })();
+
+  function say(t){ status.textContent = t; }
+  function readyName(n){ return ['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA'][n] || n; }
+
+  v.addEventListener('loadedmetadata', ()=> say('loadedmetadata • '+v.videoWidth+'x'+v.videoHeight));
+  v.addEventListener('loadeddata',     ()=> say('loadeddata • readyState='+readyName(v.readyState)));
+  v.addEventListener('canplay',        ()=> say('canplay ✅'));
+  v.addEventListener('error',          ()=> say('ERROR ❌ code='+(v.error&&v.error.code)));
+  v.addEventListener('stalled',        ()=> say('stalled…'));
+  v.addEventListener('waiting',        ()=> say('waiting…'));
+
+  // Quick codec support check
+  say('Checking support… mp4:'+v.canPlayType('video/mp4')+' mov:'+v.canPlayType('video/quicktime'));
+})();
+</script>
+
 
 </html>
 
