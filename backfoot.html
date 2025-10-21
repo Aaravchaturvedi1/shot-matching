@@ -34,5 +34,6 @@ pl=document.getElementById("play"),ps=document.getElementById("pause"),h=documen
 f.addEventListener("change",()=>{const F=f.files&&f.files[0]; if(!F) return; if(u._b) URL.revokeObjectURL(u._b); u._b=URL.createObjectURL(F); u.src=u._b; u.load();});
 pl.onclick=async()=>{try{await p.play(); await u.play();}catch(e){}};
 ps.onclick=()=>{p.pause(); u.pause();}; h.onclick=()=>{p.playbackRate=u.playbackRate=0.5}; o.onclick=()=>{p.playbackRate=u.playbackRate=1};})();
+<script src="assets/js/shot-match-similarity.js"></script>
 </script>
 </html>
