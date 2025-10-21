@@ -210,4 +210,24 @@
 
   analyzeBtn.addEventListener('click', analyze);
 })();
-</script>c
+// make it easy to call from anywhere
+window.__analyzeSimilarity = analyze;
+
+// attach the click handler when the DOM is ready (in case the script loads early)
+(function onReadyAttach(){
+  const attach = () => {
+    const btn = document.getElementById('analyzeBtn');
+    const status = document.getElementById('status');
+    if (!btn) return; // page might not have the button (other pages)
+    btn.addEventListener('click', analyze);
+    if (status) status.textContent = 'Ready. Click ⭐ Analyze Similarity';
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attach);
+  } else {
+    attach();
+  }
+})();
+</script>
+
+
