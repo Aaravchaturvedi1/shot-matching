@@ -1,37 +1,110 @@
-<!DOCTYPE html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cover Drive / 盖驱击球</title>
 <style>
-:root{--bd:#e5e7eb;--muted:#6b7280} html,body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-.frame{max-width:1000px;margin:0 auto;padding:12px}.card{border:1px solid var(--bd);border-radius:14px;padding:12px;background:#fff}
+:root{--bd:#e5e7eb;--muted:#6b7280}
+html,body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+.frame{max-width:1000px;margin:0 auto;padding:12px}
+.card{border:1px solid var(--bd);border-radius:14px;padding:12px;background:#fff}
 .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
 .video{width:100%;aspect-ratio:16/9;max-height:320px;background:#000;border:1px solid var(--bd);border-radius:10px;overflow:hidden;position:relative}
 .video video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
-.actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}.btn{border:1px solid var(--bd);background:#f9fafb;border-radius:999px;padding:8px 12px;cursor:pointer}
-.note{font-size:12px;color:var(--muted);margin-top:6px}@media(max-width:900px){.row{grid-template-columns:1fr}}
+canvas{width:100%;aspect-ratio:16/9;display:block;border:1px dashed var(--bd);border-radius:10px;margin-top:6px}
+.actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--bd);background:#f9fafb;border-radius:999px;padding:8px 12px;cursor:pointer}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
+@media(max-width:900px){.row{grid-template-columns:1fr}}
+.bar{height:8px;background:#eef2ff;border-radius:999px;overflow:hidden;margin-top:8px}
+.bar>span{display:block;height:100%;background:linear-gradient(90deg,#5ee1b8,#7af7da);width:0%}
 </style>
+
 <div class="frame card">
   <h3 style="margin:0 0 10px">Cover Drive / 盖驱击球</h3>
+
   <div class="row">
-    <div class="card"><div style="margin:0 0 6px;font-size:14px;font-weight:600">Professional Example / 示范</div>
-      <div class="video"><video id="pro" controls preload="metadata" playsinline src="https://aach2028-nuvrg.wordpress.com/wp-content/uploads/2025/08/img_3623.mov"></video></div>
+    <!-- PRO SIDE -->
+    <div class="card">
+      <div style="margin:0 0 6px;font-size:14px;font-weight:600">Professional Example / 示范</div>
+      <div class="video">
+        <video id="proVid" controls playsinline preload="metadata" crossorigin="anonymous">
+          <source src="assets/videos/cover-drive.mp4" type="video/mp4">
+          Your browser can’t play this video.
+        </video>
+      </div>
+      <canvas id="proCanvas"></canvas>
     </div>
+
+    <!-- USER SIDE -->
     <div class="card">
       <div style="margin:0 0 6px;font-size:14px;font-weight:600">Your Video / 你的视频</div>
-      <input id="file" type="file" accept="video/*" style="width:100%;margin:0 0 8px;padding:10px;border:1px solid var(--bd);border-radius:10px">
-      <div class="video"><video id="user" controls preload="metadata" playsinline></video></div>
+      <input id="file" type="file" accept="video/*"
+        style="width:100%;margin:0 0 8px;padding:10px;border:1px solid var(--bd);border-radius:10px">
+      <div class="video"><video id="userVid" controls preload="metadata" playsinline crossorigin="anonymous"></video></div>
+      <canvas id="userCanvas"></canvas>
+
       <div class="actions">
-        <button class="btn" id="play">▶ Play Both</button><button class="btn" id="pause">⏸ Pause Both</button>
-        <button class="btn" id="half">0.5×</button><button class="btn" id="one">1×</button>
+        <button class="btn" id="play">▶ Play Both</button>
+        <button class="btn" id="pause">⏸ Pause Both</button>
+        <button class="btn" id="half">0.5×</button>
+        <button class="btn" id="one">1×</button>
+        <button class="btn" id="analyzeBtn">⭐ Analyze Similarity</button>
+        <span id="status" style="margin-left:8px;color:#6b7280"></span>
       </div>
+
+      <div class="bar"><span id="scoreBar"></span></div>
       <div class="note">Privacy: your file never uploads; local preview only. 隐私：仅本地预览，不会上传。</div>
     </div>
   </div>
 </div>
+
 <script>
-(()=>{const p=document.getElementById("pro"),u=document.getElementById("user"),f=document.getElementById("file"),
-pl=document.getElementById("play"),ps=document.getElementById("pause"),h=document.getElementById("half"),o=document.getElementById("one");
-f.addEventListener("change",()=>{const F=f.files&&f.files[0]; if(!F) return; if(u._b) URL.revokeObjectURL(u._b); u._b=URL.createObjectURL(F); u.src=u._b; u.load();});
-pl.onclick=async()=>{try{await p.play(); await u.play();}catch(e){}};
-ps.onclick=()=>{p.pause(); u.pause();}; h.onclick=()=>{p.playbackRate=u.playbackRate=0.5}; o.onclick=()=>{p.playbackRate=u.playbackRate=1};})();
+(() => {
+  const p = document.getElementById("proVid"),
+        u = document.getElementById("userVid"),
+        f = document.getElementById("file"),
+        pl = document.getElementById("play"),
+        ps = document.getElementById("pause"),
+        h  = document.getElementById("half"),
+        o  = document.getElementById("one");
+
+  f.addEventListener("change", () => {
+    const F = f.files && f.files[0]; if (!F) return;
+    if (u._b) URL.revokeObjectURL(u._b);
+    u._b = URL.createObjectURL(F); u.src = u._b; u.load();
+  });
+
+  pl.onclick = async () => { try { await p.play(); await u.play(); } catch (e) {} };
+  ps.onclick = () => { p.pause(); u.pause(); };
+  h.onclick  = () => { p.playbackRate = u.playbackRate = 0.5; };
+  o.onclick  = () => { p.playbackRate = u.playbackRate = 1; };
+})();
+</script>
+
+<!-- TFJS + MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+
+<!-- Shared similarity logic -->
+<script src="assets/js/shot-match-similarity.js?v=4"></script>
+
+<!-- (Optional) tiny diagnostic -->
+<script>
+(function(){
+  const s = m => { const el = document.getElementById('status'); if(el) el.textContent = m; };
+  s('Ready. Click ⭐ Analyze Similarity');
+  const v = document.getElementById('proVid'), c = document.getElementById('proCanvas');
+  v.onloadeddata = async () => {
+    try{ v.pause(); c.width=v.videoWidth||640; c.height=v.videoHeight||360;
+      c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+      c.getContext('2d').getImageData(0,0,1,1);
+      s('CORS OK ✅  — upload your clip and click Analyze.');
+    }catch(e){ s('CORS blocked ❌ — keep pro video inside assets/videos/.'); }
+  };
+})();
 </script>
 </html>
