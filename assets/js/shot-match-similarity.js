@@ -21,6 +21,36 @@
     return;
   }
 
+  // --- SAME VIDEO DETECTION HELPERS ---
+
+// get the filename of the pro clip from its URL
+function proFileNameFromSrc() {
+  try {
+    const u = new URL(proVid.currentSrc || proVid.src, location.href);
+    const last = u.pathname.split('/').pop() || '';
+    return last.split('?')[0].toLowerCase();
+  } catch { return ''; }
+}
+
+// HEAD request to get Content-Length of the pro clip (same-origin on GitHub Pages)
+async function proContentLength() {
+  try {
+    const r = await fetch(proVid.currentSrc || proVid.src, { method: 'HEAD' });
+    const len = r.headers.get('content-length');
+    return len ? parseInt(len, 10) : null;
+  } catch { return null; }
+}
+
+// quick metadata check: same name OR same byte-size
+async function isSameVideoByMeta(userFile) {
+  if (!userFile) return false;
+  const proLen = await proContentLength();
+  const nameMatch = proFileNameFromSrc() === (userFile.name || '').toLowerCase();
+  const sizeMatch = (proLen != null) && Math.abs(proLen - userFile.size) <= 16; // allow tiny header diffs
+  return nameMatch || sizeMatch;
+}
+
+
   // upload → set user video
   if (fileInput && userVid) {
   fileInput.addEventListener('change', () => {
@@ -188,6 +218,17 @@
       }
 
       say('Computing DTW…');
+    const metaSame = await isSameVideoByMeta(userVid._file);
+    const dtwSame  = dist <= 0.03 && Math.abs(seqUser.length - seqPro.length) <= 2; // tiny distance → treat as same
+    if (metaSame || dtwSame) {
+      const mainScore = 100;
+      if (scoreBar) scoreBar.style.width = mainScore + '%';
+      say('Exact match detected ✅ Score: 100');
+
+      if (window.awardShotResult) {
+        window.awardShotResult({ timingScore:1, stanceScore:1, swingScore:1 });
+      }
+      return; // skip normal scoring path
       const dist = dtw(seqUser, seqPro, 0.15);
       const mainScore = scoreFromDist(dist);
 
