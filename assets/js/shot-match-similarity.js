@@ -23,15 +23,17 @@
 
   // upload → set user video
   if (fileInput && userVid) {
-    fileInput.addEventListener('change', () => {
-      const f = fileInput.files && fileInput.files[0];
-      if (!f) return;
-      if (userVid._u) URL.revokeObjectURL(userVid._u);
-      userVid._u = URL.createObjectURL(f);
-      userVid.src = userVid._u;
-      userVid.load();
-    });
-  }
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    userVid._file = f;                 // ⬅️ remember the file (NEW)
+    if (userVid._u) URL.revokeObjectURL(userVid._u);
+    userVid._u = URL.createObjectURL(f);
+    userVid.src = userVid._u;
+    userVid.load();
+  });
+}
+
 
   // Drawing utilities
   function drawPose(canvas, pose, color = '#00ff99') {
