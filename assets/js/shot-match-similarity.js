@@ -34,27 +34,52 @@
   }
 
   // Drawing utilities
-  function drawPose(canvas, pose, color = '#5ee1b8') {
-    const ctx = canvas.getContext('2d');
-    const k = pose.keypoints || pose.keypoints3D || [];
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineWidth = 3; ctx.strokeStyle = color; ctx.fillStyle = color;
-    const pairs = [
-      ['left_shoulder','right_shoulder'], ['left_hip','right_hip'],
-      ['left_shoulder','left_elbow'], ['left_elbow','left_wrist'],
-      ['right_shoulder','right_elbow'], ['right_elbow','right_wrist'],
-      ['left_hip','left_knee'], ['left_knee','left_ankle'],
-      ['right_hip','right_knee'], ['right_knee','right_ankle']
-    ];
-    const gp = (name) => k.find(p=>p.name===name) || k.find(p=>p.part===name);
-    pairs.forEach(([a,b])=>{
-      const A=gp(a), B=gp(b); if(!A||!B||A.score<0.3||B.score<0.3) return;
-      ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
-    });
-    k.forEach(p=>{
-      if(p.score>=0.3){ ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); }
-    });
-  }
+  function drawPose(canvas, pose, color = '#00ff99') {
+  const ctx = canvas.getContext('2d');
+  const k = pose.keypoints || pose.keypoints3D || [];
+  
+  // 💡 Background gradient for better contrast
+  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  grad.addColorStop(0, '#0f172a');   // dark navy
+  grad.addColorStop(1, '#1e293b');   // slate
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 💪 Brighter + thicker lines
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = color;
+
+  const pairs = [
+    ['left_shoulder','right_shoulder'], ['left_hip','right_hip'],
+    ['left_shoulder','left_elbow'], ['left_elbow','left_wrist'],
+    ['right_shoulder','right_elbow'], ['right_elbow','right_wrist'],
+    ['left_hip','left_knee'], ['left_knee','left_ankle'],
+    ['right_hip','right_knee'], ['right_knee','right_ankle']
+  ];
+  const gp = (name) => k.find(p => p.name === name) || k.find(p => p.part === name);
+
+  pairs.forEach(([a,b]) => {
+    const A = gp(a), B = gp(b);
+    if (!A || !B || A.score < 0.3 || B.score < 0.3) return;
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.stroke();
+  });
+
+  // 🔵 Joint circles (slightly larger)
+  k.forEach(p => {
+    if (p.score >= 0.3) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+
 
   // Angles
   function angle(a,b,c){
