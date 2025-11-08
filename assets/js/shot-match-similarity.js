@@ -218,20 +218,34 @@ async function isSameVideoByMeta(userFile) {
       }
 
       say('Computing DTW…');
-    const metaSame = await isSameVideoByMeta(userVid._file);
-    const dtwSame  = dist <= 0.03 && Math.abs(seqUser.length - seqPro.length) <= 2; // tiny distance → treat as same
-    if (metaSame || dtwSame) {
-      const mainScore = 100;
+   const dist = dtw(seqUser, seqPro, 0.15);
+
+      // === Exact-match override ===========================================
+      // 1) same-name or same byte-size (HEAD content-length) as the pro clip
+      const metaSame = await isSameVideoByMeta(userVid._file);
+      // 2) extremely small DTW distance + nearly same length
+      const dtwSame  = dist <= 0.05 && Math.abs(seqUser.length - seqPro.length) <= 2;
+
+      if (metaSame || dtwSame) {
+        const mainScore = 100;
+        if (scoreBar) scoreBar.style.width = mainScore + '%';
+        say('Exact match detected ✅ Score: 100');
+        if (window.awardShotResult) {
+          window.awardShotResult({ timingScore:1, stanceScore:1, swingScore:1 });
+        }
+        return; // skip normal scoring
+      }
+      // ====================================================================
+
+      // Normal scoring path
+      const mainScore = scoreFromDist(dist);
       if (scoreBar) scoreBar.style.width = mainScore + '%';
-      say('Exact match detected ✅ Score: 100');
+      say('Done ✅  Score: ' + mainScore);
 
       if (window.awardShotResult) {
-        window.awardShotResult({ timingScore:1, stanceScore:1, swingScore:1 });
+        const t = mainScore/100, s = mainScore/100, sw = mainScore/100;
+        window.awardShotResult({ timingScore:t, stanceScore:s, swingScore:sw });
       }
-      return; // skip normal scoring path
-      const dist = dtw(seqUser, seqPro, 0.15);
-      const mainScore = scoreFromDist(dist);
-
       // UI update
       if (scoreBar) scoreBar.style.width = mainScore + '%';
       say('Done ✅  Score: ' + mainScore);
