@@ -197,8 +197,11 @@ function scoreFromDist(d) {
 }
 
 
+  
   // detector (create once)
   let detector;
+  let lastScore = null; // remember previous displayed score
+
   async function ensureDetector(){
     if(detector) return detector;
     await tf.setBackend('webgl');
@@ -229,28 +232,54 @@ function scoreFromDist(d) {
         return;
       }
 
-      say('Computing DTW…');
-   const dist = dtw(seqUser, seqPro, 0.15);
+           say('Computing DTW…');
+      const dist = dtw(seqUser, seqPro, 0.15);
 
-      // === Exact-match override ===========================================
-      // 1) same-name or same byte-size (HEAD content-length) as the pro clip
+      // === Exact-match override (same video → 100) =========================
       const metaSame = await isSameVideoByMeta(userVid._file);
-      // 2) extremely small DTW distance + nearly same length
-      const dtwSame  = dist <= 0.05 && Math.abs(seqUser.length - seqPro.length) <= 2;
-
+      const dtwSame  = dist <= 0.03 && Math.abs(seqUser.length - seqPro.length) <= 2;
       if (metaSame || dtwSame) {
         const mainScore = 100;
         if (scoreBar) scoreBar.style.width = mainScore + '%';
         say('Exact match detected ✅ Score: 100');
+
         if (window.awardShotResult) {
           window.awardShotResult({ timingScore:1, stanceScore:1, swingScore:1 });
         }
-        return; // skip normal scoring
+        lastScore = mainScore;
+        return; // skip normal scoring path
       }
-      // ====================================================================
+      // =====================================================================
 
-      // Normal scoring path
-      const mainScore = scoreFromDist(dist);
+      // Base score from distance (already mapped into 30–80 by scoreFromDist)
+      let mainScore = scoreFromDist(dist);
+
+      // === Enforce at least ±5 change vs previous ==========================
+      if (lastScore !== null && mainScore !== 100) {
+        const MIN = 30;
+        const MAX = 80;
+
+        const diff = mainScore - lastScore;
+        if (Math.abs(diff) < 5) {
+          if (diff === 0) {
+            // no change → nudge up by 5 if possible, else down by 5
+            if (lastScore + 5 <= MAX) {
+              mainScore = lastScore + 5;
+            } else if (lastScore - 5 >= MIN) {
+              mainScore = lastScore - 5;
+            }
+          } else if (diff > 0) {
+            // small improvement → boost to +5 or clamp to MAX
+            mainScore = Math.min(MAX, lastScore + 5);
+          } else {
+            // small drop → push to -5 or clamp to MIN
+            mainScore = Math.max(MIN, lastScore - 5);
+          }
+        }
+      }
+      // =====================================================================
+
+      // UI update with final displayed score
       if (scoreBar) scoreBar.style.width = mainScore + '%';
       say('Done ✅  Score: ' + mainScore);
 
@@ -258,17 +287,10 @@ function scoreFromDist(d) {
         const t = mainScore/100, s = mainScore/100, sw = mainScore/100;
         window.awardShotResult({ timingScore:t, stanceScore:s, swingScore:sw });
       }
-      // UI update
-      if (scoreBar) scoreBar.style.width = mainScore + '%';
-      say('Done ✅  Score: ' + mainScore);
 
-      // Optional: integrate with Fun Pack if present
-      if (window.awardShotResult) {
-        // Rough per-area splits (can refine later)
-        // Use whole-body score for all three for now
-        const t = mainScore/100, s = mainScore/100, sw = mainScore/100;
-        window.awardShotResult({ timingScore:t, stanceScore:s, swingScore:sw });
-      }
+      // remember for next attempt
+      lastScore = mainScore;
+
     }catch(e){
       console.error(e);
       say('Error: ' + (e && e.message ? e.message : e));
