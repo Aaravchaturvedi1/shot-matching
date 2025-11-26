@@ -183,7 +183,19 @@ async function isSameVideoByMeta(userFile) {
     return seq;
   }
 
-  const scoreFromDist = (d) => Math.max(0, Math.min(100, Math.round(100*Math.exp(-d/12))));
+  // Adjusted scoring curve: raw 0–100 mapped into 30–80
+function scoreFromDist(d) {
+  const raw = 100 * Math.exp(-d / 12);   // original scoring curve
+  const clamped = Math.max(0, Math.min(100, Math.round(raw)));
+
+  // Rescale 0–100 → 30–80
+  // 0 → 30
+  // 100 → 80
+  const scaled = 30 + (clamped / 100) * 50;
+
+  return Math.round(scaled);
+}
+
 
   // detector (create once)
   let detector;
