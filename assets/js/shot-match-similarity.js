@@ -256,7 +256,7 @@ function scoreFromDist(d) {
 
       // === Enforce at least ±5 change vs previous ==========================
       if (lastScore !== null && mainScore !== 100) {
-        const MIN = 30;
+        const MIN = 60;
         const MAX = 80;
 
         const diff = mainScore - lastScore;
