@@ -188,10 +188,10 @@ function scoreFromDist(d) {
   const raw = 100 * Math.exp(-d / 12);   // original scoring curve
   const clamped = Math.max(0, Math.min(100, Math.round(raw)));
 
-  // Rescale 0–100 → 30–80
-  // 0 → 30
+  // Rescale 0–100 → 60–80
+  // 0 → 60
   // 100 → 80
-  const scaled = 30 + (clamped / 100) * 50;
+  const scaled = 60 + (clamped / 100) * 50;
 
   return Math.round(scaled);
 }
