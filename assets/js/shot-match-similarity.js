@@ -308,22 +308,26 @@
   function calculateWeightedScore(distances) {
     // Convert each distance to a similarity score (0-100)
     // Using gentler curves for each metric
-    const angleScore = 100 * Math.exp(-distances.anglesDist / 25);
-    const posScore = 100 * Math.exp(-distances.positionsDist / 2.5);
-    const propScore = 100 * Math.exp(-distances.proportionsDist / 3.0);
-    const velScore = 100 * Math.exp(-distances.velocityDist / 1.5);
-    const timingScore = 100 * Math.exp(-distances.timingDist / 2.0);
+    // Add safety checks for undefined/null values
+    const angleScore = 100 * Math.exp(-(distances.anglesDist || 0) / 25);
+    const posScore = 100 * Math.exp(-(distances.positionsDist || 0) / 2.5);
+    const propScore = 100 * Math.exp(-(distances.proportionsDist || 0) / 3.0);
+    const velScore = 100 * Math.exp(-(distances.velocityDist || 0) / 1.5);
+    const timingScore = 100 * Math.exp(-(distances.timingDist || 0) / 2.0);
     
     // Weighted average
     const finalScore = 
       angleScore * WEIGHTS.angles +
       posScore * WEIGHTS.relativePositions +
       velScore * WEIGHTS.velocity +
-      timingScore * WEIGHTS.sequentialTiming +
+      timingScore * WEIGHTS.SequentialTiming +  // Fixed typo: was sequentialTiming, should match WEIGHTS key
       propScore * WEIGHTS.bodyProportions;
     
+    // Safety check for final score
+    const safeFinal = isNaN(finalScore) ? 0 : finalScore;
+    
     return {
-      final: Math.round(finalScore),
+      final: Math.round(safeFinal),
       breakdown: {
         angles: Math.round(angleScore),
         positions: Math.round(posScore),
