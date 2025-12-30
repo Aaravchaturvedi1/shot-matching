@@ -1,4 +1,4 @@
-// Shot Match Similarity (PURE JS) — robust to missing optional elements
+// Shot Match Similarity (GENTLE CURVE, NO BASELINE)
 (function () {
   // required elements
   const statusEl  = document.getElementById('status');
@@ -7,7 +7,7 @@
   const proCanvas = document.getElementById('proCanvas');
   const userCanvas= document.getElementById('userCanvas');
   const analyzeBtn= document.getElementById('analyzeBtn');
-  const fileInput = document.getElementById('file'); // your upload input
+  const fileInput = document.getElementById('file');
 
   // optional elements (guarded)
   const scoreBar  = document.getElementById('scoreBar');
@@ -23,95 +23,86 @@
 
   // --- SAME VIDEO DETECTION HELPERS ---
 
-// get the filename of the pro clip from its URL
-function proFileNameFromSrc() {
-  try {
-    const u = new URL(proVid.currentSrc || proVid.src, location.href);
-    const last = u.pathname.split('/').pop() || '';
-    return last.split('?')[0].toLowerCase();
-  } catch { return ''; }
-}
+  function proFileNameFromSrc() {
+    try {
+      const u = new URL(proVid.currentSrc || proVid.src, location.href);
+      const last = u.pathname.split('/').pop() || '';
+      return last.split('?')[0].toLowerCase();
+    } catch { return ''; }
+  }
 
-// HEAD request to get Content-Length of the pro clip (same-origin on GitHub Pages)
-async function proContentLength() {
-  try {
-    const r = await fetch(proVid.currentSrc || proVid.src, { method: 'HEAD' });
-    const len = r.headers.get('content-length');
-    return len ? parseInt(len, 10) : null;
-  } catch { return null; }
-}
+  async function proContentLength() {
+    try {
+      const r = await fetch(proVid.currentSrc || proVid.src, { method: 'HEAD' });
+      const len = r.headers.get('content-length');
+      return len ? parseInt(len, 10) : null;
+    } catch { return null; }
+  }
 
-// quick metadata check: same name OR same byte-size
-async function isSameVideoByMeta(userFile) {
-  if (!userFile) return false;
-  const proLen = await proContentLength();
-  const nameMatch = proFileNameFromSrc() === (userFile.name || '').toLowerCase();
-  const sizeMatch = (proLen != null) && Math.abs(proLen - userFile.size) <= 16; // allow tiny header diffs
-  return nameMatch || sizeMatch;
-}
-
+  async function isSameVideoByMeta(userFile) {
+    if (!userFile) return false;
+    const proLen = await proContentLength();
+    const nameMatch = proFileNameFromSrc() === (userFile.name || '').toLowerCase();
+    const sizeMatch = (proLen != null) && Math.abs(proLen - userFile.size) <= 16;
+    return nameMatch || sizeMatch;
+  }
 
   // upload → set user video
   if (fileInput && userVid) {
-  fileInput.addEventListener('change', () => {
-    const f = fileInput.files && fileInput.files[0];
-    if (!f) return;
-    userVid._file = f;                 // ⬅️ remember the file (NEW)
-    if (userVid._u) URL.revokeObjectURL(userVid._u);
-    userVid._u = URL.createObjectURL(f);
-    userVid.src = userVid._u;
-    userVid.load();
-  });
-}
-
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      userVid._file = f;
+      if (userVid._u) URL.revokeObjectURL(userVid._u);
+      userVid._u = URL.createObjectURL(f);
+      userVid.src = userVid._u;
+      userVid.load();
+    });
+  }
 
   // Drawing utilities
   function drawPose(canvas, pose, color = '#00ff99') {
-  const ctx = canvas.getContext('2d');
-  const k = pose.keypoints || pose.keypoints3D || [];
-  
-  // 💡 Background gradient for better contrast
-  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  grad.addColorStop(0, '#0f172a');   // dark navy
-  grad.addColorStop(1, '#1e293b');   // slate
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext('2d');
+    const k = pose.keypoints || pose.keypoints3D || [];
+    
+    const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    grad.addColorStop(0, '#0f172a');
+    grad.addColorStop(1, '#1e293b');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 💪 Brighter + thicker lines
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = color;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 10;
-  ctx.fillStyle = color;
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = color;
 
-  const pairs = [
-    ['left_shoulder','right_shoulder'], ['left_hip','right_hip'],
-    ['left_shoulder','left_elbow'], ['left_elbow','left_wrist'],
-    ['right_shoulder','right_elbow'], ['right_elbow','right_wrist'],
-    ['left_hip','left_knee'], ['left_knee','left_ankle'],
-    ['right_hip','right_knee'], ['right_knee','right_ankle']
-  ];
-  const gp = (name) => k.find(p => p.name === name) || k.find(p => p.part === name);
+    const pairs = [
+      ['left_shoulder','right_shoulder'], ['left_hip','right_hip'],
+      ['left_shoulder','left_elbow'], ['left_elbow','left_wrist'],
+      ['right_shoulder','right_elbow'], ['right_elbow','right_wrist'],
+      ['left_hip','left_knee'], ['left_knee','left_ankle'],
+      ['right_hip','right_knee'], ['right_knee','right_ankle']
+    ];
+    const gp = (name) => k.find(p => p.name === name) || k.find(p => p.part === name);
 
-  pairs.forEach(([a,b]) => {
-    const A = gp(a), B = gp(b);
-    if (!A || !B || A.score < 0.3 || B.score < 0.3) return;
-    ctx.beginPath();
-    ctx.moveTo(A.x, A.y);
-    ctx.lineTo(B.x, B.y);
-    ctx.stroke();
-  });
-
-  // 🔵 Joint circles (slightly larger)
-  k.forEach(p => {
-    if (p.score >= 0.3) {
+    pairs.forEach(([a,b]) => {
+      const A = gp(a), B = gp(b);
+      if (!A || !B || A.score < 0.3 || B.score < 0.3) return;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  });
-}
+      ctx.moveTo(A.x, A.y);
+      ctx.lineTo(B.x, B.y);
+      ctx.stroke();
+    });
 
+    k.forEach(p => {
+      if (p.score >= 0.3) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+  }
 
   // Angles
   function angle(a,b,c){
@@ -139,8 +130,8 @@ async function isSameVideoByMeta(userFile) {
     ];
   }
 
-  // DTW
-  function dtw(a,b,windowRatio=0.2){
+  // DTW with wider window for flexibility
+  function dtw(a,b,windowRatio=0.4){  // Even wider window
     const n=a.length, m=b.length;
     const w=Math.max(Math.floor(Math.max(n,m)*windowRatio), Math.abs(n-m));
     const INF=1e9;
@@ -183,24 +174,18 @@ async function isSameVideoByMeta(userFile) {
     return seq;
   }
 
-  // Adjusted scoring curve: raw 0–100 mapped into 30–80
-function scoreFromDist(d) {
-  const raw = 100 * Math.exp(-d / 12);   // original scoring curve
-  const clamped = Math.max(0, Math.min(100, Math.round(raw)));
+  // 🔧 VERY GENTLE SCORING CURVE - NO BASELINE BOOST
+  function scoreFromDist(d) {
+    // Much gentler exponential decay - higher scores for similar distances
+    // Using /30 instead of /12 makes it MUCH more forgiving
+    const score = 100 * Math.exp(-d / 30);
+    
+    // Simple clamp to 0-100, no artificial baseline
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
 
-  // Rescale 0–100 → 60–80
-  // 0 → 60
-  // 100 → 80
-  const scaled = 60 + (clamped / 100) * 50;
-
-  return Math.round(scaled);
-}
-
-
-  
   // detector (create once)
   let detector;
-  let lastScore = null; // remember previous displayed score
 
   async function ensureDetector(){
     if(detector) return detector;
@@ -212,7 +197,7 @@ function scoreFromDist(d) {
     return detector;
   }
 
-  // MAIN analyze function (exposed)
+  // MAIN analyze function
   async function analyze(){
     try{
       if(!proVid || !userVid || !proCanvas || !userCanvas){ say('Missing required elements.'); return; }
@@ -232,54 +217,27 @@ function scoreFromDist(d) {
         return;
       }
 
-           say('Computing DTW…');
-      const dist = dtw(seqUser, seqPro, 0.15);
+      say('Computing DTW…');
+      const dist = dtw(seqUser, seqPro, 0.4);  // Wide window for timing flexibility
 
-      // === Exact-match override (same video → 100) =========================
+      // Exact-match override (same video → 100)
       const metaSame = await isSameVideoByMeta(userVid._file);
-      const dtwSame  = dist <= 0.03 && Math.abs(seqUser.length - seqPro.length) <= 2;
+      const dtwSame  = dist <= 0.05 && Math.abs(seqUser.length - seqPro.length) <= 3;
       if (metaSame || dtwSame) {
         const mainScore = 100;
         if (scoreBar) scoreBar.style.width = mainScore + '%';
-        say('Exact match detected ✅ Score: 100');
+        say('Perfect match! ✅ Score: 100');
 
         if (window.awardShotResult) {
           window.awardShotResult({ timingScore:1, stanceScore:1, swingScore:1 });
         }
-        lastScore = mainScore;
-        return; // skip normal scoring path
+        return;
       }
-      // =====================================================================
 
-      // Base score from distance (already mapped into 30–80 by scoreFromDist)
-      let mainScore = scoreFromDist(dist);
+      // Pure score from distance - no baseline tricks
+      const mainScore = scoreFromDist(dist);
 
-      // === Enforce at least ±5 change vs previous ==========================
-      if (lastScore !== null && mainScore !== 100) {
-        const MIN = 60;
-        const MAX = 80;
-
-        const diff = mainScore - lastScore;
-        if (Math.abs(diff) < 5) {
-          if (diff === 0) {
-            // no change → nudge up by 5 if possible, else down by 5
-            if (lastScore + 5 <= MAX) {
-              mainScore = lastScore + 5;
-            } else if (lastScore - 5 >= MIN) {
-              mainScore = lastScore - 5;
-            }
-          } else if (diff > 0) {
-            // small improvement → boost to +5 or clamp to MAX
-            mainScore = Math.min(MAX, lastScore + 5);
-          } else {
-            // small drop → push to -5 or clamp to MIN
-            mainScore = Math.max(MIN, lastScore - 5);
-          }
-        }
-      }
-      // =====================================================================
-
-      // UI update with final displayed score
+      // UI update
       if (scoreBar) scoreBar.style.width = mainScore + '%';
       say('Done ✅  Score: ' + mainScore);
 
@@ -287,9 +245,6 @@ function scoreFromDist(d) {
         const t = mainScore/100, s = mainScore/100, sw = mainScore/100;
         window.awardShotResult({ timingScore:t, stanceScore:s, swingScore:sw });
       }
-
-      // remember for next attempt
-      lastScore = mainScore;
 
     }catch(e){
       console.error(e);
@@ -300,7 +255,7 @@ function scoreFromDist(d) {
   // Expose for console/testing
   window.__analyzeSimilarity = analyze;
 
-  // Attach click handler after DOM is ready
+  // Attach click handler
   const attach = () => { if (analyzeBtn) { analyzeBtn.addEventListener('click', analyze); say('Ready. Click ⭐ Analyze Similarity'); } };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', attach);
@@ -308,4 +263,3 @@ function scoreFromDist(d) {
     attach();
   }
 })();
-
