@@ -306,6 +306,7 @@
   // === WEIGHTED SCORING ===
   
   function calculateWeightedScore(distances) {
+    console.log(distances)
     // Convert each distance to a similarity score (0-100)
     // Using gentler curves for each metric
     // Add safety checks for undefined/null values
@@ -324,8 +325,10 @@
       propScore * WEIGHTS.bodyProportions;
     
     // Safety check for final score
+    console.log(safeFinal)
     const safeFinal = isNaN(finalScore) ? 0 : finalScore;
-    
+    console.log(safeFinal)
+
     return {
       final: Math.round(safeFinal),
       breakdown: {
