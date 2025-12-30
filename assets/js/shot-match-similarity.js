@@ -1,4 +1,4 @@
-// Shot Match Similarity (GENTLE CURVE, NO BASELINE)
+// Shot Match Similarity (MULTI-METRIC WEIGHTED ANALYSIS)
 (function () {
   // required elements
   const statusEl  = document.getElementById('status');
@@ -21,8 +21,16 @@
     return;
   }
 
-  // --- SAME VIDEO DETECTION HELPERS ---
+  // 🎯 WEIGHTS for different metrics (must sum to 1.0)
+  const WEIGHTS = {
+    angles: 0.20,              // Joint angles (less important now)
+    relativePositions: 0.30,   // Most important - body geometry
+    velocity: 0.25,            // Speed/smoothness of movement
+    SequentialTiming: 0.15,    // Kinetic chain timing
+    bodyProportions: 0.10      // Ratios and balance
+  };
 
+  // --- SAME VIDEO DETECTION HELPERS ---
   function proFileNameFromSrc() {
     try {
       const u = new URL(proVid.currentSrc || proVid.src, location.href);
@@ -104,7 +112,11 @@
     });
   }
 
-  // Angles
+  // === HELPER FUNCTIONS ===
+  function kp(obj,name){ 
+    return obj.keypoints.find(p=>p.name===name)||obj.keypoints.find(p=>p.part===name); 
+  }
+
   function angle(a,b,c){
     const ab=[a.x-b.x,a.y-b.y], cb=[c.x-b.x,c.y-b.y];
     const dot=ab[0]*cb[0]+ab[1]*cb[1];
@@ -112,8 +124,14 @@
     const cos=Math.max(-1,Math.min(1,dot/(na*nc+1e-6)));
     return Math.acos(cos)*180/Math.PI;
   }
-  function kp(obj,name){ return obj.keypoints.find(p=>p.name===name)||obj.keypoints.find(p=>p.part===name); }
 
+  function dist2d(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  // === FEATURE EXTRACTION ===
+
+  // 1️⃣ Joint Angles (original metric)
   function extractAngles(pose){
     const ls=kp(pose,'left_shoulder'), le=kp(pose,'left_elbow'), lw=kp(pose,'left_wrist');
     const rs=kp(pose,'right_shoulder'), re=kp(pose,'right_elbow'), rw=kp(pose,'right_wrist');
@@ -121,26 +139,127 @@
     const rh=kp(pose,'right_hip'), rk=kp(pose,'right_knee'), ra=kp(pose,'right_ankle');
     if([ls,le,lw,rs,re,rw,lh,lk,la,rh,rk,ra].some(p=>!p||p.score<0.3)) return null;
     return [
-      angle(ls, le, lw),  // left elbow
-      angle(rs, re, rw),  // right elbow
-      angle(lh, ls, le),  // left shoulder
-      angle(rh, rs, re),  // right shoulder
-      angle(lh, lk, la),  // left knee
-      angle(rh, rk, ra)   // right knee
+      angle(ls, le, lw),  angle(rs, re, rw),
+      angle(lh, ls, le),  angle(rh, rs, re),
+      angle(lh, lk, la),  angle(rh, rk, ra)
     ];
   }
 
-  // DTW with wider window for flexibility
-  function dtw(a,b,windowRatio=0.4){  // Even wider window
+  // 2️⃣ Relative Joint Positions (normalized by body scale)
+  function extractRelativePositions(pose){
+    const ls=kp(pose,'left_shoulder'), rs=kp(pose,'right_shoulder');
+    const lh=kp(pose,'left_hip'), rh=kp(pose,'right_hip');
+    const lw=kp(pose,'left_wrist'), rw=kp(pose,'right_wrist');
+    const lk=kp(pose,'left_knee'), rk=kp(pose,'right_knee');
+    
+    if([ls,rs,lh,rh,lw,rw,lk,rk].some(p=>!p||p.score<0.3)) return null;
+    
+    // Body center and scale
+    const cx = (ls.x + rs.x + lh.x + rh.x) / 4;
+    const cy = (ls.y + rs.y + lh.y + rh.y) / 4;
+    const scale = dist2d(ls, rs) + dist2d(lh, rh) + 1e-6;
+    
+    // Normalized positions relative to body center
+    const normalize = (p) => [(p.x - cx)/scale, (p.y - cy)/scale];
+    
+    return [
+      ...normalize(lw), ...normalize(rw),  // wrist positions
+      ...normalize(lk), ...normalize(rk),  // knee positions
+      ...normalize(ls), ...normalize(rs),  // shoulder positions
+      ...normalize(lh), ...normalize(rh)   // hip positions
+    ];
+  }
+
+  // 3️⃣ Body Proportions & Ratios
+  function extractBodyProportions(pose){
+    const ls=kp(pose,'left_shoulder'), rs=kp(pose,'right_shoulder');
+    const lh=kp(pose,'left_hip'), rh=kp(pose,'right_hip');
+    const lw=kp(pose,'left_wrist'), rw=kp(pose,'right_wrist');
+    
+    if([ls,rs,lh,rh,lw,rw].some(p=>!p||p.score<0.3)) return null;
+    
+    const shoulderWidth = dist2d(ls, rs);
+    const hipWidth = dist2d(lh, rh);
+    const torsoHeight = (dist2d(ls, lh) + dist2d(rs, rh)) / 2;
+    const leftArmReach = dist2d(ls, lw);
+    const rightArmReach = dist2d(rs, rw);
+    
+    return [
+      hipWidth / (shoulderWidth + 1e-6),      // hip-shoulder ratio
+      leftArmReach / (torsoHeight + 1e-6),    // left arm extension
+      rightArmReach / (torsoHeight + 1e-6),   // right arm extension
+      (lw.y - ls.y) / (torsoHeight + 1e-6),   // left wrist height
+      (rw.y - rs.y) / (torsoHeight + 1e-6)    // right wrist height
+    ];
+  }
+
+  // === COMPREHENSIVE FEATURE EXTRACTION ===
+  function extractAllFeatures(pose){
+    const angles = extractAngles(pose);
+    const positions = extractRelativePositions(pose);
+    const proportions = extractBodyProportions(pose);
+    
+    if(!angles || !positions || !proportions) return null;
+    
+    return {
+      angles,
+      positions,
+      proportions
+    };
+  }
+
+  // === VELOCITY & TIMING CALCULATIONS ===
+  
+  // Calculate velocity between consecutive frames
+  function calculateVelocities(sequence) {
+    const velocities = [];
+    for(let i = 1; i < sequence.length; i++) {
+      const prev = sequence[i-1];
+      const curr = sequence[i];
+      
+      // Velocity = change in position features
+      const vel = curr.positions.map((v, idx) => v - prev.positions[idx]);
+      velocities.push(vel);
+    }
+    return velocities;
+  }
+
+  // Calculate timing of key events (peaks, transitions)
+  function calculateSequentialTiming(sequence) {
+    const timings = [];
+    
+    for(let i = 0; i < sequence.length; i++) {
+      const feat = sequence[i];
+      
+      // Key timing indicators
+      timings.push([
+        feat.proportions[1],  // left arm extension (backswing/follow-through)
+        feat.proportions[2],  // right arm extension
+        feat.positions[0],    // left wrist X (swing path)
+        feat.positions[4]     // left shoulder X (rotation)
+      ]);
+    }
+    return timings;
+  }
+
+  // === DTW FOR DIFFERENT FEATURE TYPES ===
+  
+  function dtwSimple(a, b, windowRatio=0.4){
     const n=a.length, m=b.length;
     const w=Math.max(Math.floor(Math.max(n,m)*windowRatio), Math.abs(n-m));
     const INF=1e9;
     const D=Array.from({length:n+1},()=>Array(m+1).fill(INF));
     D[0][0]=0;
+    
     const dist=(v1,v2)=> {
-      let s=0; for(let i=0;i<v1.length;i++){ const d=v1[i]-v2[i]; s+=d*d; }
+      let s=0; 
+      for(let i=0;i<v1.length;i++){ 
+        const d=v1[i]-v2[i]; 
+        s+=d*d; 
+      }
       return Math.sqrt(s);
     };
+    
     for(let i=1;i<=n;i++){
       const jStart=Math.max(1,i-w), jEnd=Math.min(m,i+w);
       for(let j=jStart;j<=jEnd;j++){
@@ -151,6 +270,72 @@
     return D[n][m]/(n+m);
   }
 
+  // === MULTI-METRIC COMPARISON ===
+  
+  function compareSequences(seqUser, seqPro) {
+    const results = {};
+    
+    // 1. Angle comparison
+    const anglesUser = seqUser.map(f => f.angles);
+    const anglesPro = seqPro.map(f => f.angles);
+    results.anglesDist = dtwSimple(anglesUser, anglesPro, 0.4);
+    
+    // 2. Relative positions comparison
+    const posUser = seqUser.map(f => f.positions);
+    const posPro = seqPro.map(f => f.positions);
+    results.positionsDist = dtwSimple(posUser, posPro, 0.4);
+    
+    // 3. Body proportions comparison
+    const propUser = seqUser.map(f => f.proportions);
+    const propPro = seqPro.map(f => f.proportions);
+    results.proportionsDist = dtwSimple(propUser, propPro, 0.4);
+    
+    // 4. Velocity comparison
+    const velUser = calculateVelocities(seqUser);
+    const velPro = calculateVelocities(seqPro);
+    results.velocityDist = dtwSimple(velUser, velPro, 0.4);
+    
+    // 5. Sequential timing comparison
+    const timingUser = calculateSequentialTiming(seqUser);
+    const timingPro = calculateSequentialTiming(seqPro);
+    results.timingDist = dtwSimple(timingUser, timingPro, 0.4);
+    
+    return results;
+  }
+
+  // === WEIGHTED SCORING ===
+  
+  function calculateWeightedScore(distances) {
+    // Convert each distance to a similarity score (0-100)
+    // Using gentler curves for each metric
+    const angleScore = 100 * Math.exp(-distances.anglesDist / 25);
+    const posScore = 100 * Math.exp(-distances.positionsDist / 2.5);
+    const propScore = 100 * Math.exp(-distances.proportionsDist / 3.0);
+    const velScore = 100 * Math.exp(-distances.velocityDist / 1.5);
+    const timingScore = 100 * Math.exp(-distances.timingDist / 2.0);
+    
+    // Weighted average
+    const finalScore = 
+      angleScore * WEIGHTS.angles +
+      posScore * WEIGHTS.relativePositions +
+      velScore * WEIGHTS.velocity +
+      timingScore * WEIGHTS.sequentialTiming +
+      propScore * WEIGHTS.bodyProportions;
+    
+    return {
+      final: Math.round(finalScore),
+      breakdown: {
+        angles: Math.round(angleScore),
+        positions: Math.round(posScore),
+        proportions: Math.round(propScore),
+        velocity: Math.round(velScore),
+        timing: Math.round(timingScore)
+      }
+    };
+  }
+
+  // === SAMPLING ===
+  
   async function sampleSequence(video, canvas, take=90){
     await video.play(); video.pause();
     const w=canvas.width = video.videoWidth || 854;
@@ -159,6 +344,7 @@
     const total = Math.max(1, Math.floor(video.duration*30));
     const step = Math.max(1, Math.floor(total/take));
     const seq=[];
+    
     for(let f=0; f<total; f+=step){
       video.currentTime = f/30;
       await new Promise(r=> video.onseeked = ()=>r());
@@ -166,22 +352,12 @@
       const poses = await detector.estimatePoses(canvas,{flipHorizontal:false});
       if(poses && poses[0]){
         drawPose(canvas, poses[0]);
-        const feat = extractAngles(poses[0]);
+        const feat = extractAllFeatures(poses[0]);
         if(feat) seq.push(feat);
       }
       say(`Analyzing ${seq.length} frames…`);
     }
     return seq;
-  }
-
-  // 🔧 VERY GENTLE SCORING CURVE - NO BASELINE BOOST
-  function scoreFromDist(d) {
-    // Much gentler exponential decay - higher scores for similar distances
-    // Using /30 instead of /12 makes it MUCH more forgiving
-    const score = 100 * Math.exp(-d / 30);
-    
-    // Simple clamp to 0-100, no artificial baseline
-    return Math.max(0, Math.min(100, Math.round(score)));
   }
 
   // detector (create once)
@@ -197,19 +373,26 @@
     return detector;
   }
 
-  // MAIN analyze function
+  // === MAIN ANALYSIS ===
+  
   async function analyze(){
     try{
-      if(!proVid || !userVid || !proCanvas || !userCanvas){ say('Missing required elements.'); return; }
-      if(!userVid.src){ alert('Please choose your video.'); return; }
+      if(!proVid || !userVid || !proCanvas || !userCanvas){ 
+        say('Missing required elements.'); 
+        return; 
+      }
+      if(!userVid.src){ 
+        alert('Please choose your video.'); 
+        return; 
+      }
 
       say('Loading models…');
       await ensureDetector();
 
-      say('Estimating poses (pro)…');
+      say('Analyzing pro video…');
       const seqPro  = await sampleSequence(proVid,  proCanvas);
 
-      say('Estimating poses (you)…');
+      say('Analyzing your video…');
       const seqUser = await sampleSequence(userVid, userCanvas);
 
       if(seqPro.length<8 || seqUser.length<8){
@@ -217,29 +400,29 @@
         return;
       }
 
-      say('Computing DTW…');
-      const dist = dtw(seqUser, seqPro, 0.4);  // Wide window for timing flexibility
-
-      // Exact-match override (same video → 100)
+      say('Computing multi-metric comparison…');
+      
+      // Check for exact match first
       const metaSame = await isSameVideoByMeta(userVid._file);
-      const dtwSame  = dist <= 0.05 && Math.abs(seqUser.length - seqPro.length) <= 3;
-      if (metaSame || dtwSame) {
-        const mainScore = 100;
-        if (scoreBar) scoreBar.style.width = mainScore + '%';
+      if (metaSame) {
+        if (scoreBar) scoreBar.style.width = '100%';
         say('Perfect match! ✅ Score: 100');
-
         if (window.awardShotResult) {
           window.awardShotResult({ timingScore:1, stanceScore:1, swingScore:1 });
         }
         return;
       }
-
-      // Pure score from distance - no baseline tricks
-      const mainScore = scoreFromDist(dist);
+      
+      // Multi-metric comparison
+      const distances = compareSequences(seqUser, seqPro);
+      const scoreResult = calculateWeightedScore(distances);
+      
+      const mainScore = scoreResult.final;
+      const breakdown = scoreResult.breakdown;
 
       // UI update
       if (scoreBar) scoreBar.style.width = mainScore + '%';
-      say('Done ✅  Score: ' + mainScore);
+      say(`Done ✅ Score: ${mainScore} | Angles:${breakdown.angles} Pos:${breakdown.positions} Vel:${breakdown.velocity} Time:${breakdown.timing} Props:${breakdown.proportions}`);
 
       if (window.awardShotResult) {
         const t = mainScore/100, s = mainScore/100, sw = mainScore/100;
@@ -256,7 +439,12 @@
   window.__analyzeSimilarity = analyze;
 
   // Attach click handler
-  const attach = () => { if (analyzeBtn) { analyzeBtn.addEventListener('click', analyze); say('Ready. Click ⭐ Analyze Similarity'); } };
+  const attach = () => { 
+    if (analyzeBtn) { 
+      analyzeBtn.addEventListener('click', analyze); 
+      say('Ready. Click ⭐ Analyze Similarity'); 
+    } 
+  };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', attach);
   } else {
