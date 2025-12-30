@@ -325,7 +325,7 @@
       propScore * WEIGHTS.bodyProportions;
     
     // Safety check for final score
-    console.log(safeFinal)
+ 
     const safeFinal = isNaN(finalScore) ? 0 : finalScore;
     console.log(safeFinal)
 
